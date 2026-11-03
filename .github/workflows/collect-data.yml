@@ -34,7 +34,7 @@ jobs:
           cat > collect.py << 'EOF'
           import json
           import os
-          from datetime import datetime, timedelta, timezone
+          from datetime import datetime, timezone
 
           import requests
 
@@ -44,11 +44,12 @@ jobs:
               "x-api-key": os.environ["FINGRID_API_KEY"]
           }
 
+          wind_actual = None
 
-          def latest_value(dataset_id):
+          try:
 
               r = requests.get(
-                  f"https://data.fingrid.fi/api/datasets/{dataset_id}/data",
+                  "https://data.fingrid.fi/api/datasets/181/data",
                   headers=headers,
                   params={
                       "pageSize": 1
@@ -58,71 +59,19 @@ jobs:
 
               r.raise_for_status()
 
-              data = r.json()["data"]
-
-              if not data:
-                  return None
-
-              return data[0]["value"]
-
-
-          def forecast_dataset():
-
-              start_time = datetime.now(timezone.utc)
-
-              end_time = start_time + timedelta(hours=72)
-
-              r = requests.get(
-                  "https://data.fingrid.fi/api/datasets/245/data",
-                  headers=headers,
-                  params={
-                      "startTime": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                      "endTime": end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                  },
-                  timeout=30
-              )
-
-              r.raise_for_status()
-
               rows = r.json()["data"]
 
-              if not rows:
-                  return []
+              if rows:
+                  wind_actual = rows[0]["value"]
 
-              rows = list(reversed(rows))
+          except Exception as e:
 
-              return rows
-
-
-          def forecast_at(rows, index):
-
-              if not rows:
-                  return None
-
-              if index >= len(rows):
-                  return rows[-1]["value"]
-
-              return rows[index]["value"]
+              print(
+                  "Wind fetch failed:",
+                  str(e)
+              )
 
 
-          # toteutunut tuulivoima
-          wind_actual = latest_value(181)
-
-          # 72h ennuste
-          forecast_rows = forecast_dataset()
-
-          print(f"Forecast rows fetched: {len(forecast_rows)}")
-
-
-          forecast_1h  = forecast_at(forecast_rows, 4)
-          forecast_6h  = forecast_at(forecast_rows, 24)
-          forecast_12h = forecast_at(forecast_rows, 48)
-          forecast_24h = forecast_at(forecast_rows, 96)
-          forecast_48h = forecast_at(forecast_rows, 192)
-          forecast_72h = forecast_at(forecast_rows, 287)
-
-
-          # pörssisähkön tämänhetkinen hinta
           price = None
 
           try:
@@ -142,7 +91,10 @@ jobs:
 
           except Exception as e:
 
-              print("Price fetch failed:", str(e))
+              print(
+                  "Price fetch failed:",
+                  str(e)
+              )
 
 
           row = {
@@ -152,16 +104,7 @@ jobs:
 
               "price": price,
 
-              "windActual": wind_actual,
-
-              "forecast": {
-                  "1h": forecast_1h,
-                  "6h": forecast_6h,
-                  "12h": forecast_12h,
-                  "24h": forecast_24h,
-                  "48h": forecast_48h,
-                  "72h": forecast_72h
-              }
+              "windActual": wind_actual
           }
 
 
@@ -182,7 +125,6 @@ jobs:
 
           history.append(row)
 
-          # säilytä viimeiset 10000 riviä
           history = history[-10000:]
 
 
@@ -200,7 +142,6 @@ jobs:
               )
 
 
-          print("Saved row:")
           print(
               json.dumps(
                   row,
@@ -208,6 +149,7 @@ jobs:
                   ensure_ascii=False
               )
           )
+
           EOF
 
           python collect.py
