@@ -3,9 +3,6 @@ name: Test Action
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: '0 * * * *'
-
 jobs:
   test:
     runs-on: ubuntu-latest
