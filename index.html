@@ -6,36 +6,257 @@
 <title>Tuulivoimaennuste</title>
 
 <style>
-body{
+
+*{
     margin:0;
+    padding:0;
+    box-sizing:border-box;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-    background:#1565c0;
+}
+
+body{
+    background:#0f172a;
     color:white;
     height:100vh;
+}
+
+.container{
     display:flex;
+    flex-direction:column;
     justify-content:center;
     align-items:center;
+    height:100vh;
     text-align:center;
+    padding:30px;
 }
 
 h1{
-    font-size:5rem;
+    font-size:clamp(2rem,5vw,4rem);
     margin-bottom:20px;
 }
 
-p{
-    font-size:2rem;
+.value{
+    font-size:clamp(4rem,10vw,8rem);
+    font-weight:900;
+    line-height:1;
 }
-</style>
 
+.unit{
+    font-size:1.5rem;
+    opacity:.8;
+    margin-bottom:30px;
+}
+
+.price{
+    font-size:clamp(2rem,6vw,4rem);
+    font-weight:700;
+    margin-top:10px;
+}
+
+.stats{
+    margin-top:40px;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:20px;
+    max-width:900px;
+    width:100%;
+}
+
+.card{
+    background:rgba(255,255,255,.08);
+    border-radius:12px;
+    padding:20px;
+}
+
+.card-title{
+    font-size:.9rem;
+    opacity:.8;
+    margin-bottom:8px;
+}
+
+.card-value{
+    font-size:1.8rem;
+    font-weight:700;
+}
+
+.time{
+    position:absolute;
+    top:20px;
+    right:20px;
+    font-size:1rem;
+    opacity:.8;
+}
+
+.footer{
+    position:absolute;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    opacity:.6;
+    font-size:.9rem;
+}
+
+</style>
 </head>
 
 <body>
 
-<div>
-    <h1>🌬️ Tuulivoimaennuste</h1>
-    <p>GitHub Pages toimii</p>
+<div class="time" id="time"></div>
+
+<div class="container">
+
+    <h1>🌬️ TUULIVOIMA NYT</h1>
+
+    <div class="value" id="wind">
+        --
+    </div>
+
+    <div class="unit">
+        MW
+    </div>
+
+    <div class="price" id="price">
+        --
+    </div>
+
+    <div class="stats">
+
+        <div class="card">
+            <div class="card-title">
+                Havaintoja kerätty
+            </div>
+            <div class="card-value" id="count">
+                --
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                Tuulivoiman 24 h keskiarvo
+            </div>
+            <div class="card-value" id="windAvg">
+                --
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                Sähkön hinnan 24 h keskiarvo
+            </div>
+            <div class="card-value" id="priceAvg">
+                --
+            </div>
+        </div>
+
+    </div>
+
 </div>
+
+<div class="footer">
+    Päivitys 5 minuutin välein
+</div>
+
+<script>
+
+function updateClock(){
+    document.getElementById("time")
+        .innerText =
+        new Date().toLocaleString("fi-FI");
+}
+
+setInterval(updateClock,1000);
+updateClock();
+
+async function loadHistory(){
+
+    try{
+
+        const response =
+            await fetch(
+                "data/history.json?v=" +
+                Date.now()
+            );
+
+        const history =
+            await response.json();
+
+        if(!history.length)
+            return;
+
+        const latest =
+            history[history.length-1];
+
+        document.getElementById("wind")
+            .innerText =
+            Math.round(
+                latest.windActual
+            );
+
+        document.getElementById("price")
+            .innerText =
+            latest.price
+            ? `⚡ ${latest.price.toFixed(2)} snt/kWh`
+            : "⚡ Hinta ei saatavilla";
+
+        document.getElementById("count")
+            .innerText =
+            history.length;
+
+        const last24 =
+            history.slice(-24);
+
+        const windValues =
+            last24
+            .map(x=>x.windActual)
+            .filter(x=>x!=null);
+
+        const priceValues =
+            last24
+            .map(x=>x.price)
+            .filter(x=>x!=null);
+
+        const windAvg =
+            windValues.length
+            ? windValues.reduce(
+                (a,b)=>a+b,0
+              ) / windValues.length
+            : null;
+
+        const priceAvg =
+            priceValues.length
+            ? priceValues.reduce(
+                (a,b)=>a+b,0
+              ) / priceValues.length
+            : null;
+
+        document.getElementById("windAvg")
+            .innerText =
+            windAvg
+            ? Math.round(windAvg) + " MW"
+            : "--";
+
+        document.getElementById("priceAvg")
+            .innerText =
+            priceAvg
+            ? priceAvg.toFixed(2)+" snt"
+            : "--";
+
+    }
+    catch(err){
+
+        console.error(err);
+
+    }
+}
+
+loadHistory();
+
+setInterval(
+    loadHistory,
+    300000
+);
+
+</script>
 
 </body>
 </html>
