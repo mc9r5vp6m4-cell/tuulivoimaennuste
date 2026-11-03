@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: "*/15 * * * *"
 
 jobs:
   collect:
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -33,21 +33,24 @@ jobs:
 
           cat > collect.py << 'EOF'
           import json
-          import requests
+          import os
           from datetime import datetime, timezone
+
+          import requests
 
           HISTORY_FILE = "data/history.json"
 
           headers = {
-              "x-api-key": "${FINGRID_API_KEY}"
+              "x-api-key": os.environ["FINGRID_API_KEY"]
           }
 
+
           def latest_value(dataset_id):
+
               r = requests.get(
-                  "https://data.fingrid.fi/api/data",
+                  f"https://data.fingrid.fi/api/datasets/{dataset_id}/data",
                   headers=headers,
                   params={
-                      "datasets": dataset_id,
                       "pageSize": 1
                   },
                   timeout=30
@@ -62,12 +65,13 @@ jobs:
 
               return data[0]["value"]
 
+
           def forecast_value(dataset_id, index):
+
               r = requests.get(
-                  "https://data.fingrid.fi/api/data",
+                  f"https://data.fingrid.fi/api/datasets/{dataset_id}/data",
                   headers=headers,
                   params={
-                      "datasets": dataset_id,
                       "pageSize": 500
                   },
                   timeout=30
@@ -87,10 +91,11 @@ jobs:
 
               return rows[index]["value"]
 
-          # toteutunut tuulivoima
+
+          # Toteutunut tuulivoima
           wind_actual = latest_value(181)
 
-          # tuulivoimaennuste
+          # Tuulivoimaennuste
           forecast_1h = forecast_value(245, 4)
           forecast_6h = forecast_value(245, 24)
           forecast_12h = forecast_value(245, 48)
@@ -98,10 +103,11 @@ jobs:
           forecast_48h = forecast_value(245, 192)
           forecast_72h = forecast_value(245, 288)
 
-          # pörssisähkö
+          # Pörssisähkö
           price = None
 
           try:
+
               r = requests.get(
                   "https://sahkonhintahuomenna.fi/api/v1/fi/latest.json",
                   timeout=30
@@ -111,13 +117,18 @@ jobs:
 
               latest = r.json()
 
-              price = latest.get("cents_per_kWh_incl_vat")
+              price = latest.get(
+                  "cents_per_kWh_incl_vat"
+              )
 
-          except Exception:
-              pass
+          except Exception as e:
+              print("Price fetch failed:", e)
+
 
           row = {
-              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "timestamp": datetime.now(
+                  timezone.utc
+              ).isoformat(),
 
               "price": price,
 
@@ -133,18 +144,34 @@ jobs:
               }
           }
 
+
           try:
-              with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+
+              with open(
+                  HISTORY_FILE,
+                  "r",
+                  encoding="utf-8"
+              ) as f:
+
                   history = json.load(f)
-          except:
+
+          except Exception:
+
               history = []
+
 
           history.append(row)
 
-          # säilytetään max 10000 viimeisintä riviä
+          # Säilytä viimeiset 10000 riviä
           history = history[-10000:]
 
-          with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+
+          with open(
+              HISTORY_FILE,
+              "w",
+              encoding="utf-8"
+          ) as f:
+
               json.dump(
                   history,
                   f,
@@ -153,7 +180,11 @@ jobs:
               )
 
           print("Saved row:")
-          print(json.dumps(row, indent=2))
+          print(json.dumps(
+              row,
+              indent=2,
+              ensure_ascii=False
+          ))
           EOF
 
           python collect.py
