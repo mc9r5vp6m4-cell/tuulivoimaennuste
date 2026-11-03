@@ -34,7 +34,7 @@ jobs:
           cat > collect.py << 'EOF'
           import json
           import os
-          from datetime import datetime, timezone
+          from datetime import datetime, timedelta, timezone
 
           import requests
 
@@ -66,13 +66,18 @@ jobs:
               return data[0]["value"]
 
 
-          def forecast_dataset(dataset_id):
+          def forecast_dataset():
+
+              start_time = datetime.now(timezone.utc)
+
+              end_time = start_time + timedelta(hours=72)
 
               r = requests.get(
-                  f"https://data.fingrid.fi/api/datasets/{dataset_id}/data",
+                  "https://data.fingrid.fi/api/datasets/245/data",
                   headers=headers,
                   params={
-                      "pageSize": 300
+                      "startTime": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      "endTime": end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
                   },
                   timeout=30
               )
@@ -89,32 +94,35 @@ jobs:
               return rows
 
 
+          def forecast_at(rows, index):
+
+              if not rows:
+                  return None
+
+              if index >= len(rows):
+                  return rows[-1]["value"]
+
+              return rows[index]["value"]
+
+
           # toteutunut tuulivoima
           wind_actual = latest_value(181)
 
-          # kaikki ennusterivit yhdellä haulla
-          forecast_rows = forecast_dataset(245)
+          # 72h ennuste
+          forecast_rows = forecast_dataset()
 
-          def get_forecast(index):
-
-              if not forecast_rows:
-                  return None
-
-              if index >= len(forecast_rows):
-                  return forecast_rows[-1]["value"]
-
-              return forecast_rows[index]["value"]
+          print(f"Forecast rows fetched: {len(forecast_rows)}")
 
 
-          forecast_1h  = get_forecast(4)
-          forecast_6h  = get_forecast(24)
-          forecast_12h = get_forecast(48)
-          forecast_24h = get_forecast(96)
-          forecast_48h = get_forecast(192)
-          forecast_72h = get_forecast(288)
+          forecast_1h  = forecast_at(forecast_rows, 4)
+          forecast_6h  = forecast_at(forecast_rows, 24)
+          forecast_12h = forecast_at(forecast_rows, 48)
+          forecast_24h = forecast_at(forecast_rows, 96)
+          forecast_48h = forecast_at(forecast_rows, 192)
+          forecast_72h = forecast_at(forecast_rows, 287)
 
 
-          # pörssisähkö
+          # pörssisähkön tämänhetkinen hinta
           price = None
 
           try:
@@ -134,10 +142,7 @@ jobs:
 
           except Exception as e:
 
-              print(
-                  "Price fetch failed:",
-                  str(e)
-              )
+              print("Price fetch failed:", str(e))
 
 
           row = {
@@ -177,6 +182,7 @@ jobs:
 
           history.append(row)
 
+          # säilytä viimeiset 10000 riviä
           history = history[-10000:]
 
 
