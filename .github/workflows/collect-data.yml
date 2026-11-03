@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "0 * * * *"
 
 jobs:
   collect:
@@ -66,13 +66,13 @@ jobs:
               return data[0]["value"]
 
 
-          def forecast_value(dataset_id, index):
+          def forecast_dataset(dataset_id):
 
               r = requests.get(
                   f"https://data.fingrid.fi/api/datasets/{dataset_id}/data",
                   headers=headers,
                   params={
-                      "pageSize": 500
+                      "pageSize": 300
                   },
                   timeout=30
               )
@@ -82,28 +82,39 @@ jobs:
               rows = r.json()["data"]
 
               if not rows:
-                  return None
+                  return []
 
               rows = list(reversed(rows))
 
-              if index >= len(rows):
-                  return rows[-1]["value"]
-
-              return rows[index]["value"]
+              return rows
 
 
-          # Toteutunut tuulivoima
+          # toteutunut tuulivoima
           wind_actual = latest_value(181)
 
-          # Tuulivoimaennuste
-          forecast_1h = forecast_value(245, 4)
-          forecast_6h = forecast_value(245, 24)
-          forecast_12h = forecast_value(245, 48)
-          forecast_24h = forecast_value(245, 96)
-          forecast_48h = forecast_value(245, 192)
-          forecast_72h = forecast_value(245, 288)
+          # kaikki ennusterivit yhdellä haulla
+          forecast_rows = forecast_dataset(245)
 
-          # Pörssisähkö
+          def get_forecast(index):
+
+              if not forecast_rows:
+                  return None
+
+              if index >= len(forecast_rows):
+                  return forecast_rows[-1]["value"]
+
+              return forecast_rows[index]["value"]
+
+
+          forecast_1h  = get_forecast(4)
+          forecast_6h  = get_forecast(24)
+          forecast_12h = get_forecast(48)
+          forecast_24h = get_forecast(96)
+          forecast_48h = get_forecast(192)
+          forecast_72h = get_forecast(288)
+
+
+          # pörssisähkö
           price = None
 
           try:
@@ -122,7 +133,11 @@ jobs:
               )
 
           except Exception as e:
-              print("Price fetch failed:", e)
+
+              print(
+                  "Price fetch failed:",
+                  str(e)
+              )
 
 
           row = {
@@ -162,7 +177,6 @@ jobs:
 
           history.append(row)
 
-          # Säilytä viimeiset 10000 riviä
           history = history[-10000:]
 
 
@@ -179,12 +193,15 @@ jobs:
                   indent=2
               )
 
+
           print("Saved row:")
-          print(json.dumps(
-              row,
-              indent=2,
-              ensure_ascii=False
-          ))
+          print(
+              json.dumps(
+                  row,
+                  indent=2,
+                  ensure_ascii=False
+              )
+          )
           EOF
 
           python collect.py
