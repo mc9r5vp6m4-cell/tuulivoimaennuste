@@ -1,0 +1,42 @@
+name: Collect Energy Data
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: '*/15 * * * *'
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read existing history
+        run: |
+          mkdir -p data
+
+          if [ ! -f data/history.json ]; then
+            echo "[]" > data/history.json
+          fi
+
+      - name: Show current state
+        run: |
+          echo "History file exists"
+          cat data/history.json
+
+      - name: Commit if needed
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add data/history.json
+
+          git diff --staged --quiet || git commit -m "Update history"
+
+          git push
