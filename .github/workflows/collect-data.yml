@@ -17,26 +17,155 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Read existing history
-        run: |
-          mkdir -p data
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-          if [ ! -f data/history.json ]; then
-            echo "[]" > data/history.json
-          fi
-
-      - name: Show current state
+      - name: Install dependencies
         run: |
-          echo "History file exists"
-          cat data/history.json
+          pip install requests
 
-      - name: Commit if needed
+      - name: Collect data
+        env:
+          FINGRID_API_KEY: ${{ secrets.FINGRID_API_KEY }}
         run: |
+
+          cat > collect.py << 'EOF'
+          import json
+          import requests
+          from datetime import datetime, timezone
+
+          HISTORY_FILE = "data/history.json"
+
+          headers = {
+              "x-api-key": "${FINGRID_API_KEY}"
+          }
+
+          def latest_value(dataset_id):
+              r = requests.get(
+                  "https://data.fingrid.fi/api/data",
+                  headers=headers,
+                  params={
+                      "datasets": dataset_id,
+                      "pageSize": 1
+                  },
+                  timeout=30
+              )
+
+              r.raise_for_status()
+
+              data = r.json()["data"]
+
+              if not data:
+                  return None
+
+              return data[0]["value"]
+
+          def forecast_value(dataset_id, index):
+              r = requests.get(
+                  "https://data.fingrid.fi/api/data",
+                  headers=headers,
+                  params={
+                      "datasets": dataset_id,
+                      "pageSize": 500
+                  },
+                  timeout=30
+              )
+
+              r.raise_for_status()
+
+              rows = r.json()["data"]
+
+              if not rows:
+                  return None
+
+              rows = list(reversed(rows))
+
+              if index >= len(rows):
+                  return rows[-1]["value"]
+
+              return rows[index]["value"]
+
+          # toteutunut tuulivoima
+          wind_actual = latest_value(181)
+
+          # tuulivoimaennuste
+          forecast_1h = forecast_value(245, 4)
+          forecast_6h = forecast_value(245, 24)
+          forecast_12h = forecast_value(245, 48)
+          forecast_24h = forecast_value(245, 96)
+          forecast_48h = forecast_value(245, 192)
+          forecast_72h = forecast_value(245, 288)
+
+          # pörssisähkö
+          price = None
+
+          try:
+              r = requests.get(
+                  "https://sahkonhintahuomenna.fi/api/v1/fi/latest.json",
+                  timeout=30
+              )
+
+              r.raise_for_status()
+
+              latest = r.json()
+
+              price = latest.get("cents_per_kWh_incl_vat")
+
+          except Exception:
+              pass
+
+          row = {
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+
+              "price": price,
+
+              "windActual": wind_actual,
+
+              "forecast": {
+                  "1h": forecast_1h,
+                  "6h": forecast_6h,
+                  "12h": forecast_12h,
+                  "24h": forecast_24h,
+                  "48h": forecast_48h,
+                  "72h": forecast_72h
+              }
+          }
+
+          try:
+              with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                  history = json.load(f)
+          except:
+              history = []
+
+          history.append(row)
+
+          # säilytetään max 10000 viimeisintä riviä
+          history = history[-10000:]
+
+          with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+              json.dump(
+                  history,
+                  f,
+                  ensure_ascii=False,
+                  indent=2
+              )
+
+          print("Saved row:")
+          print(json.dumps(row, indent=2))
+          EOF
+
+          python collect.py
+
+      - name: Commit changes
+        run: |
+
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
           git add data/history.json
 
-          git diff --staged --quiet || git commit -m "Update history"
+          git diff --staged --quiet || git commit -m "Collect energy data"
 
           git push
