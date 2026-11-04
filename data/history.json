@@ -143,5 +143,10 @@
     "timestamp": "2026-11-04T16:48:37.204078+00:00",
     "price": null,
     "windActual": 7447.01
+  },
+  {
+    "timestamp": "2026-11-04T17:47:08.621382+00:00",
+    "price": null,
+    "windActual": 7189.17
   }
 ]
