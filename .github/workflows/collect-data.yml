@@ -45,7 +45,7 @@ jobs:
           }
 
           #
-          # TUULIVOIMA
+          # TUULIVOIMA (Fingrid dataset 181)
           #
           wind_actual = None
 
@@ -74,16 +74,16 @@ jobs:
                   str(e)
               )
 
-
           #
           # PÖRSSISÄHKÖ
+          # SAMA LOGIIKKA KUIN SAHKONAYTTO-PROJEKTISSA
           #
           price = None
 
           try:
 
               r = requests.get(
-                  "https://sahkonhintahuomenna.fi/api/v1/fi/latest.json",
+                  "https://sahkonhintahuomenna.fi/api/v1/fi/today.json",
                   timeout=30
               )
 
@@ -96,30 +96,33 @@ jobs:
                   []
               )
 
-              now = datetime.now().astimezone()
+              current_hour = datetime.now().hour
+
+              hour_rows = []
 
               for item in prices:
 
-                  start = datetime.fromisoformat(
-                      item["start"]
-                  )
+                  try:
 
-                  minutes = item["minutes"]
-
-                  end = start.timestamp() + minutes * 60
-
-                  if (
-                      start.timestamp()
-                      <= now.timestamp()
-                      <
-                      end
-                  ):
-
-                      price = item.get(
-                          "cents_per_kWh_incl_vat"
+                      d = datetime.fromisoformat(
+                          item["start"]
                       )
 
-                      break
+                      if d.hour == current_hour:
+
+                          hour_rows.append(
+                              item["cents_per_kWh_incl_vat"]
+                          )
+
+                  except Exception:
+                      pass
+
+              if hour_rows:
+
+                  price = (
+                      sum(hour_rows)
+                      / len(hour_rows)
+                  )
 
           except Exception as e:
 
@@ -127,7 +130,6 @@ jobs:
                   "Price fetch failed:",
                   str(e)
               )
-
 
           #
           # HISTORIARIVI
@@ -141,7 +143,6 @@ jobs:
 
               "windActual": wind_actual
           }
-
 
           #
           # LUE VANHA HISTORY
@@ -160,14 +161,13 @@ jobs:
 
               history = []
 
-
           #
           # LISÄÄ UUSI RIVI
           #
           history.append(row)
 
+          # Säilytä viimeiset 10000 riviä
           history = history[-10000:]
-
 
           #
           # TALLENNA
@@ -184,7 +184,6 @@ jobs:
                   ensure_ascii=False,
                   indent=2
               )
-
 
           print(
               json.dumps(
