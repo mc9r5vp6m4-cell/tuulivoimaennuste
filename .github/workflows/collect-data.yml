@@ -96,7 +96,10 @@ jobs:
                   []
               )
 
-              current_hour = datetime.now().hour
+              from zoneinfo import ZoneInfo 
+              current_hour = datetime.now( 
+              ZoneInfo("Europe/Helsinki") 
+              ).hour
 
               hour_rows = []
 
