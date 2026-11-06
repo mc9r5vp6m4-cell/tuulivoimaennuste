@@ -6,7 +6,6 @@
 <title>Tuulivoimaennuste</title>
 
 <style>
-
 *{
     margin:0;
     padding:0;
@@ -17,88 +16,102 @@
 body{
     background:#0f172a;
     color:white;
-    height:100vh;
+    min-height:100vh;
 }
 
 .container{
     display:flex;
     flex-direction:column;
-    justify-content:center;
     align-items:center;
-    height:100vh;
     text-align:center;
-    padding:30px;
+    padding:40px 20px;
 }
 
 h1{
-    font-size:clamp(2rem,5vw,4rem);
-    margin-bottom:20px;
+    font-size:clamp(2.5rem,6vw,5rem);
+    margin-bottom:30px;
 }
 
 .value{
-    font-size:clamp(4rem,10vw,8rem);
+    font-size:clamp(5rem,12vw,10rem);
     font-weight:900;
     line-height:1;
 }
 
 .unit{
-    font-size:1.5rem;
-    opacity:.8;
-    margin-bottom:30px;
-}
-
-.price{
-    font-size:clamp(2rem,6vw,4rem);
-    font-weight:700;
+    font-size:2rem;
+    opacity:.85;
     margin-top:10px;
 }
 
-.stats{
+.status{
+    margin-top:25px;
+    font-size:clamp(2rem,5vw,3rem);
+    font-weight:800;
+}
+
+.deviation{
+    margin-top:10px;
+    font-size:1.4rem;
+    opacity:.95;
+}
+
+.price{
     margin-top:40px;
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:20px;
-    max-width:900px;
+    font-size:2.5rem;
+    font-weight:700;
+}
+
+.stats{
+    margin-top:50px;
     width:100%;
+    max-width:1200px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:20px;
 }
 
 .card{
     background:rgba(255,255,255,.08);
-    border-radius:12px;
-    padding:20px;
+    border-radius:14px;
+    padding:24px;
 }
 
 .card-title{
-    font-size:.9rem;
     opacity:.8;
-    margin-bottom:8px;
+    margin-bottom:10px;
 }
 
 .card-value{
-    font-size:1.8rem;
-    font-weight:700;
+    font-size:2rem;
+    font-weight:800;
 }
 
 .time{
-    position:absolute;
+    position:fixed;
     top:20px;
     right:20px;
-    font-size:1rem;
     opacity:.8;
 }
 
 .footer{
-    position:absolute;
-    bottom:20px;
-    left:50%;
-    transform:translateX(-50%);
+    margin-top:40px;
     opacity:.6;
-    font-size:.9rem;
 }
 
+.green{
+    color:#00e676;
+}
+
+.yellow{
+    color:#ffee58;
+}
+
+.red{
+    color:#ff6b6b;
+}
 </style>
 </head>
-
 <body>
 
 <div class="time" id="time"></div>
@@ -107,16 +120,17 @@ h1{
 
     <h1>🌬️ TUULIVOIMA NYT</h1>
 
-    <div class="value" id="wind">
-        --
+    <div class="value" id="wind">--</div>
+    <div class="unit">MW</div>
+
+    <div class="status" id="status">
+        Ladataan...
     </div>
 
-    <div class="unit">
-        MW
-    </div>
+    <div class="deviation" id="deviation"></div>
 
     <div class="price" id="price">
-        --
+        ⚡ Hinta ei saatavilla
     </div>
 
     <div class="stats">
@@ -150,31 +164,29 @@ h1{
 
     </div>
 
-</div>
+    <div class="footer">
+        Päivitetään automaattisesti
+    </div>
 
-<div class="footer">
-    Päivitys 5 minuutin välein
 </div>
 
 <script>
 
 function updateClock(){
-    document.getElementById("time")
-        .innerText =
+    document.getElementById("time").innerText =
         new Date().toLocaleString("fi-FI");
 }
 
-setInterval(updateClock,1000);
 updateClock();
+setInterval(updateClock,1000);
 
-async function loadHistory(){
+async function loadData(){
 
     try{
 
         const response =
             await fetch(
-                "data/history.json?v=" +
-                Date.now()
+                "data/history.json?v=" + Date.now()
             );
 
         const history =
@@ -186,73 +198,115 @@ async function loadHistory(){
         const latest =
             history[history.length-1];
 
+        document.getElementById("count")
+            .innerText = history.length;
+
         document.getElementById("wind")
             .innerText =
             Math.round(
                 latest.windActual
             );
 
-        document.getElementById("price")
-            .innerText =
-            latest.price
-            ? `⚡ ${latest.price.toFixed(2)} snt/kWh`
-            : "⚡ Hinta ei saatavilla";
+        if(latest.price !== null){
 
-        document.getElementById("count")
-            .innerText =
-            history.length;
+            document.getElementById("price")
+                .innerText =
+                `⚡ ${latest.price.toFixed(2)} snt/kWh`;
+        }
 
         const last24 =
             history.slice(-24);
 
         const windValues =
             last24
-            .map(x=>x.windActual)
-            .filter(x=>x!=null);
+            .map(x => x.windActual)
+            .filter(x => x != null);
 
         const priceValues =
             last24
-            .map(x=>x.price)
-            .filter(x=>x!=null);
+            .map(x => x.price)
+            .filter(x => x != null);
 
         const windAvg =
-            windValues.length
-            ? windValues.reduce(
+            windValues.reduce(
                 (a,b)=>a+b,0
-              ) / windValues.length
-            : null;
-
-        const priceAvg =
-            priceValues.length
-            ? priceValues.reduce(
-                (a,b)=>a+b,0
-              ) / priceValues.length
-            : null;
+            ) / windValues.length;
 
         document.getElementById("windAvg")
             .innerText =
-            windAvg
-            ? Math.round(windAvg) + " MW"
-            : "--";
+            `${Math.round(windAvg)} MW`;
 
-        document.getElementById("priceAvg")
+        if(priceValues.length){
+
+            const priceAvg =
+                priceValues.reduce(
+                    (a,b)=>a+b,0
+                ) / priceValues.length;
+
+            document.getElementById("priceAvg")
+                .innerText =
+                `${priceAvg.toFixed(2)} snt`;
+        }
+
+        const deviation =
+            (
+                (latest.windActual - windAvg)
+                / windAvg
+            ) * 100;
+
+        let status =
+            "🟡 NORMAALI TUULIVOIMA";
+
+        let css =
+            "yellow";
+
+        if(deviation > 20){
+
+            status =
+                "🟢 VOIMAKAS TUULIVOIMA";
+
+            css =
+                "green";
+        }
+
+        if(deviation < -20){
+
+            status =
+                "🔴 HEIKKO TUULIVOIMA";
+
+            css =
+                "red";
+        }
+
+        const statusEl =
+            document.getElementById("status");
+
+        statusEl.innerText =
+            status;
+
+        statusEl.className =
+            "status " + css;
+
+        const direction =
+            deviation >= 0
+            ? "yli"
+            : "alle";
+
+        document.getElementById("deviation")
             .innerText =
-            priceAvg
-            ? priceAvg.toFixed(2)+" snt"
-            : "--";
+            `${Math.abs(deviation).toFixed(0)} % ${direction} 24 h keskiarvon`;
 
     }
     catch(err){
 
         console.error(err);
-
     }
 }
 
-loadHistory();
+loadData();
 
 setInterval(
-    loadHistory,
+    loadData,
     300000
 );
 
