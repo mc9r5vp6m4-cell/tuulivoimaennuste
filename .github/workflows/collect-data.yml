@@ -44,6 +44,9 @@ jobs:
               "x-api-key": os.environ["FINGRID_API_KEY"]
           }
 
+          #
+          # TUULIVOIMA
+          #
           wind_actual = None
 
           try:
@@ -72,6 +75,9 @@ jobs:
               )
 
 
+          #
+          # PÖRSSISÄHKÖ
+          #
           price = None
 
           try:
@@ -83,11 +89,37 @@ jobs:
 
               r.raise_for_status()
 
-              latest = r.json()
+              data = r.json()
 
-              price = latest.get(
-                  "cents_per_kWh_incl_vat"
+              prices = data.get(
+                  "prices",
+                  []
               )
+
+              now = datetime.now().astimezone()
+
+              for item in prices:
+
+                  start = datetime.fromisoformat(
+                      item["start"]
+                  )
+
+                  minutes = item["minutes"]
+
+                  end = start.timestamp() + minutes * 60
+
+                  if (
+                      start.timestamp()
+                      <= now.timestamp()
+                      <
+                      end
+                  ):
+
+                      price = item.get(
+                          "cents_per_kWh_incl_vat"
+                      )
+
+                      break
 
           except Exception as e:
 
@@ -97,6 +129,9 @@ jobs:
               )
 
 
+          #
+          # HISTORIARIVI
+          #
           row = {
               "timestamp": datetime.now(
                   timezone.utc
@@ -108,6 +143,9 @@ jobs:
           }
 
 
+          #
+          # LUE VANHA HISTORY
+          #
           try:
 
               with open(
@@ -123,11 +161,17 @@ jobs:
               history = []
 
 
+          #
+          # LISÄÄ UUSI RIVI
+          #
           history.append(row)
 
           history = history[-10000:]
 
 
+          #
+          # TALLENNA
+          #
           with open(
               HISTORY_FILE,
               "w",
