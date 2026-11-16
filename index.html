@@ -112,6 +112,7 @@ h1{
 }
 </style>
 </head>
+
 <body>
 
 <div class="time" id="time"></div>
@@ -137,7 +138,7 @@ h1{
 
         <div class="card">
             <div class="card-title">
-                Havaintoja kerätty
+                Käyttökelpoisia havaintoja
             </div>
             <div class="card-value" id="count">
                 --
@@ -148,7 +149,16 @@ h1{
             <div class="card-title">
                 Tuulivoiman 24 h keskiarvo
             </div>
-            <div class="card-value" id="windAvg">
+            <div class="card-value" id="windAvg24">
+                --
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                Tuulivoiman 7 vrk keskiarvo
+            </div>
+            <div class="card-value" id="windAvg7d">
                 --
             </div>
         </div>
@@ -162,10 +172,19 @@ h1{
             </div>
         </div>
 
+        <div class="card">
+            <div class="card-title">
+                Tuuli ↔ Hinta korrelaatio
+            </div>
+            <div class="card-value" id="corr">
+                --
+            </div>
+        </div>
+
     </div>
 
     <div class="footer">
-        Päivitetään automaattisesti
+        Historiadata päivittyy automaattisesti
     </div>
 
 </div>
@@ -173,6 +192,7 @@ h1{
 <script>
 
 function updateClock(){
+
     document.getElementById("time").innerText =
         new Date().toLocaleString("fi-FI");
 }
@@ -180,26 +200,73 @@ function updateClock(){
 updateClock();
 setInterval(updateClock,1000);
 
+function average(arr){
+
+    if(!arr.length) return null;
+
+    return arr.reduce((a,b)=>a+b,0)/arr.length;
+}
+
+function correlation(x,y){
+
+    const n=x.length;
+
+    if(n<2) return null;
+
+    const mx=average(x);
+    const my=average(y);
+
+    let num=0;
+    let dx=0;
+    let dy=0;
+
+    for(let i=0;i<n;i++){
+
+        const vx=x[i]-mx;
+        const vy=y[i]-my;
+
+        num+=vx*vy;
+        dx+=vx*vx;
+        dy+=vy*vy;
+    }
+
+    const denom =
+        Math.sqrt(dx*dy);
+
+    if(denom===0)
+        return null;
+
+    return num/denom;
+}
+
 async function loadData(){
 
     try{
 
         const response =
             await fetch(
-                "data/history.json?v=" + Date.now()
+                "data/history.json?v="+Date.now()
             );
 
         const history =
             await response.json();
 
-        if(!history.length)
+        const valid =
+            history.filter(
+                x =>
+                    x.price != null &&
+                    x.windActual != null
+            );
+
+        if(!valid.length)
             return;
 
         const latest =
-            history[history.length-1];
+            valid[valid.length-1];
 
         document.getElementById("count")
-            .innerText = history.length;
+            .innerText =
+            valid.length;
 
         document.getElementById("wind")
             .innerText =
@@ -207,51 +274,53 @@ async function loadData(){
                 latest.windActual
             );
 
-        if(latest.price !== null){
-
-            document.getElementById("price")
-                .innerText =
-                `⚡ ${latest.price.toFixed(2)} snt/kWh`;
-        }
+        document.getElementById("price")
+            .innerText =
+            `⚡ ${latest.price.toFixed(2)} snt/kWh`;
 
         const last24 =
-            history.slice(-24);
+            valid.slice(-24);
 
-        const windValues =
-            last24
-            .map(x => x.windActual)
-            .filter(x => x != null);
+        const last7d =
+            valid.slice(-168);
 
-        const priceValues =
-            last24
-            .map(x => x.price)
-            .filter(x => x != null);
+        const wind24 =
+            average(
+                last24.map(
+                    x=>x.windActual
+                )
+            );
 
-        const windAvg =
-            windValues.reduce(
-                (a,b)=>a+b,0
-            ) / windValues.length;
+        const wind7d =
+            average(
+                last7d.map(
+                    x=>x.windActual
+                )
+            );
 
-        document.getElementById("windAvg")
+        const price24 =
+            average(
+                last24.map(
+                    x=>x.price
+                )
+            );
+
+        document.getElementById("windAvg24")
             .innerText =
-            `${Math.round(windAvg)} MW`;
+            `${Math.round(wind24)} MW`;
 
-        if(priceValues.length){
+        document.getElementById("windAvg7d")
+            .innerText =
+            `${Math.round(wind7d)} MW`;
 
-            const priceAvg =
-                priceValues.reduce(
-                    (a,b)=>a+b,0
-                ) / priceValues.length;
-
-            document.getElementById("priceAvg")
-                .innerText =
-                `${priceAvg.toFixed(2)} snt`;
-        }
+        document.getElementById("priceAvg")
+            .innerText =
+            `${price24.toFixed(2)} snt`;
 
         const deviation =
             (
-                (latest.windActual - windAvg)
-                / windAvg
+                (latest.windActual - wind7d)
+                / wind7d
             ) * 100;
 
         let status =
@@ -294,7 +363,23 @@ async function loadData(){
 
         document.getElementById("deviation")
             .innerText =
-            `${Math.abs(deviation).toFixed(0)} % ${direction} 24 h keskiarvon`;
+            `${Math.abs(deviation).toFixed(0)} % ${direction} 7 vrk keskiarvon`;
+
+        const corr =
+            correlation(
+                valid.map(
+                    x=>x.windActual
+                ),
+                valid.map(
+                    x=>x.price
+                )
+            );
+
+        document.getElementById("corr")
+            .innerText =
+            corr
+            ? corr.toFixed(2)
+            : "--";
 
     }
     catch(err){
