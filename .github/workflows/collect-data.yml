@@ -35,6 +35,7 @@ jobs:
           import json
           import os
           from datetime import datetime, timezone
+          from zoneinfo import ZoneInfo
 
           import requests
 
@@ -76,7 +77,7 @@ jobs:
 
           #
           # PÖRSSISÄHKÖ
-          # SAMA LOGIIKKA KUIN SAHKONAYTTO-PROJEKTISSA
+          # Sama logiikka kuin toimivassa sähkönäytössä
           #
           price = None
 
@@ -96,9 +97,8 @@ jobs:
                   []
               )
 
-              from zoneinfo import ZoneInfo 
-              current_hour = datetime.now( 
-              ZoneInfo("Europe/Helsinki") 
+              current_hour = datetime.now(
+                  ZoneInfo("Europe/Helsinki")
               ).hour
 
               hour_rows = []
@@ -135,6 +135,13 @@ jobs:
               )
 
           #
+          # SUOMEN AIKAAN JOHDETUT MUUTTUJAT
+          #
+          fi_now = datetime.now(
+              ZoneInfo("Europe/Helsinki")
+          )
+
+          #
           # HISTORIARIVI
           #
           row = {
@@ -144,7 +151,14 @@ jobs:
 
               "price": price,
 
-              "windActual": wind_actual
+              "windActual": wind_actual,
+
+              "hour": fi_now.hour,
+
+              "weekday": fi_now.weekday(),
+
+              "isWeekend":
+                  1 if fi_now.weekday() >= 5 else 0
           }
 
           #
@@ -165,11 +179,10 @@ jobs:
               history = []
 
           #
-          # LISÄÄ UUSI RIVI
+          # LISÄÄ RIVI
           #
           history.append(row)
 
-          # Säilytä viimeiset 10000 riviä
           history = history[-10000:]
 
           #
@@ -210,4 +223,4 @@ jobs:
 
           git diff --staged --quiet || git commit -m "Collect energy data"
 
-          git push
+          git push || true
