@@ -2150,5 +2150,13 @@
     "hour": 18,
     "weekday": 4,
     "isWeekend": 0
+  },
+  {
+    "timestamp": "2026-11-20T17:52:01.641882+00:00",
+    "price": 6.021775,
+    "windActual": 2666.63,
+    "hour": 19,
+    "weekday": 4,
+    "isWeekend": 0
   }
 ]
